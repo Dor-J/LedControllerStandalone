@@ -16,6 +16,7 @@ The app lives in `src/index.html` and uses the browser-native Web Bluetooth API 
 - Restore browser-granted devices with `navigator.bluetooth.getDevices()` when the browser supports it.
 - Use filtered discovery or wide scan for devices with unexpected names.
 - Try multiple protocol profiles, RGB channel orders, and BLE write modes from the UI.
+- Use ELK-BLEDOM `0x7e` native brightness, effect speed, effect mode, dynamic mode, and sensitivity commands.
 - Inspect and edit `localStorage` or `sessionStorage` values from the debug UI.
 - View connection state, active BLE target, last command bytes, and detailed status logs.
 - Copy or clear debug logs from the Advanced / Debug card while testing connection drops.
@@ -92,8 +93,11 @@ The **Advanced / Debug** card also exposes runtime protocol options:
 - **Protocol profile**: common 0x56 and 0x7e packet families plus experimental variants.
 - **Channel order**: RGB, RBG, GRB, GBR, BRG, or BGR for strips with swapped color channels.
 - **Write mode**: automatic, with response, or without response.
+- **Effect controls**: sends the ELK-BLEDOM `0x7e` brightness, speed, effect, dynamic, and sensitivity packets used by compatible strips.
 
 These settings are stored in `localStorage`, along with the last color and brightness. Browser Bluetooth permissions are controlled by the browser; if `navigator.bluetooth.getDevices()` is available, the app will offer reconnect to previously granted devices after reload.
+
+The ELK-BLEDOM protocol controls were adapted from FreekBes/bledom_controller's browser Web Bluetooth implementation, especially its `0000fff0` service, `0000fff3` characteristic, and `0x7e ... 0xef` command packet family.
 
 ## Storage Debugging
 

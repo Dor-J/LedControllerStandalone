@@ -288,6 +288,68 @@
                   <i class="fa-solid fa-vial" aria-hidden="true"></i>
                   <span>Test Protocol</span>
                 </button>
+
+                <div class="grid gap-3 border-t border-white/10 pt-3">
+                  <div class="grid grid-cols-2 gap-3">
+                    <label class="grid gap-1">
+                      <span class="text-xs font-medium text-slate-400">Effect</span>
+                      <select
+                        v-model="effectId"
+                        @change="saveSettings"
+                        class="min-h-11 rounded-lg border border-white/10 bg-slate-950/70 px-3 py-2 text-sm text-white focus:outline-none focus:ring-2 focus:ring-cyan-300/30"
+                        aria-label="BLEDOM effect"
+                      >
+                        <option v-for="effect in effectOptions" :value="effect.id">{{ effect.label }}</option>
+                      </select>
+                    </label>
+
+                    <label class="grid gap-1">
+                      <span class="text-xs font-medium text-slate-400">Effect speed</span>
+                      <input
+                        type="number"
+                        min="0"
+                        max="100"
+                        v-model="effectSpeed"
+                        @input="saveSettings"
+                        class="min-h-11 rounded-lg border border-white/10 bg-slate-950/70 px-3 py-2 text-sm text-white focus:outline-none focus:ring-2 focus:ring-cyan-300/30"
+                        aria-label="BLEDOM effect speed"
+                      >
+                    </label>
+                  </div>
+
+                  <label class="grid gap-1">
+                    <span class="text-xs font-medium text-slate-400">Audio sensitivity</span>
+                    <input
+                      type="range"
+                      min="0"
+                      max="255"
+                      v-model="effectSensitivity"
+                      @input="saveSettings"
+                      class="range-track w-full"
+                      aria-label="BLEDOM dynamic mode sensitivity"
+                    >
+                    <span class="text-xs text-slate-400">{{ effectSensitivity }}</span>
+                  </label>
+
+                  <div class="grid grid-cols-2 gap-2">
+                    <button
+                      type="button"
+                      @click="sendNativeBrightness"
+                      :disabled="!connected || !activeProtocol.brightness"
+                      class="min-h-11 rounded-lg border border-white/15 bg-white/[0.08] px-3 py-2 text-sm font-semibold text-white transition hover:bg-white/[0.12] focus:outline-none focus:ring-4 focus:ring-white/15 disabled:cursor-not-allowed disabled:text-slate-500"
+                    >
+                      Send Brightness
+                    </button>
+                    <button
+                      type="button"
+                      @click="sendEffect"
+                      :disabled="!connected || !activeProtocol.effect"
+                      class="min-h-11 rounded-lg border border-fuchsia-300/25 bg-fuchsia-400/[0.10] px-3 py-2 text-sm font-semibold text-fuchsia-100 transition hover:bg-fuchsia-400/[0.16] focus:outline-none focus:ring-4 focus:ring-fuchsia-300/20 disabled:cursor-not-allowed disabled:text-slate-500"
+                    >
+                      Send Effect
+                    </button>
+                  </div>
+                </div>
               </div>
             </div>
 
@@ -631,10 +693,15 @@
       },
       {
         id: 'ledenet-7e',
-        label: 'LEDENET / Magic Home 0x7e',
+        label: 'ELK-BLEDOM / LEDENET 0x7e',
         powerOn: () => [0x7e, 0x00, 0x04, 0x04, 0x01, 0xff, 0x00, 0xef],
         powerOff: () => [0x7e, 0x00, 0x04, 0x04, 0x00, 0xff, 0x00, 0xef],
-        color: (r, g, b) => [0x7e, 0x00, 0x05, 0x03, r, g, b, 0x00, 0xef]
+        color: (r, g, b) => [0x7e, 0x00, 0x05, 0x03, r, g, b, 0x00, 0xef],
+        brightness: (level) => [0x7e, 0x00, 0x01, Math.max(0, Math.min(100, Number(level) || 0)), 0x00, 0x00, 0x00, 0x00, 0xef],
+        speed: (speed) => [0x7e, 0x00, 0x02, Math.max(0, Math.min(100, Number(speed) || 0)), 0x00, 0x00, 0x00, 0x00, 0xef],
+        effect: (effectCode) => [0x7e, 0x00, 0x03, effectCode, 0x03, 0x00, 0x00, 0x00, 0xef],
+        dynamic: (dynamicCode) => [0x7e, 0x00, 0x03, dynamicCode, 0x04, 0x00, 0x00, 0x00, 0xef],
+        sensitivity: (level) => [0x7e, 0x00, 0x07, Math.max(0, Math.min(255, Number(level) || 0)), 0x00, 0x00, 0x00, 0x00, 0xef]
       },
       {
         id: 'three-byte-cc',
@@ -646,6 +713,24 @@
     ];
 
     const CHANNEL_ORDERS = ['RGB', 'RBG', 'GRB', 'GBR', 'BRG', 'BGR'];
+    const BLEDOM_EFFECTS = [
+      { id: 'red', label: 'Solid red', code: 0x80, type: 'effect' },
+      { id: 'blue', label: 'Solid blue', code: 0x81, type: 'effect' },
+      { id: 'green', label: 'Solid green', code: 0x82, type: 'effect' },
+      { id: 'cyan', label: 'Solid cyan', code: 0x83, type: 'effect' },
+      { id: 'yellow', label: 'Solid yellow', code: 0x84, type: 'effect' },
+      { id: 'magenta', label: 'Solid magenta', code: 0x85, type: 'effect' },
+      { id: 'white', label: 'Solid white', code: 0x86, type: 'effect' },
+      { id: 'jump_rgb', label: 'Jump RGB', code: 0x87, type: 'effect' },
+      { id: 'jump_rgbycmw', label: 'Jump all colors', code: 0x88, type: 'effect' },
+      { id: 'gradient_rgb', label: 'Gradient RGB', code: 0x89, type: 'effect' },
+      { id: 'gradient_rgbycmw', label: 'Gradient all colors', code: 0x8a, type: 'effect' },
+      { id: 'blink_rgbycmw', label: 'Blink all colors', code: 0x95, type: 'effect' },
+      { id: 'dynamic_1', label: 'Dynamic mode 1', code: 0x01, type: 'dynamic' },
+      { id: 'dynamic_2', label: 'Dynamic mode 2', code: 0x02, type: 'dynamic' },
+      { id: 'dynamic_3', label: 'Dynamic mode 3', code: 0x03, type: 'dynamic' },
+      { id: 'dynamic_4', label: 'Dynamic mode 4', code: 0x04, type: 'dynamic' }
+    ];
     const SETTINGS_KEY = 'ble-led-controller-settings-v2';
 
     const COLOR_WRITE_THROTTLE_MS = 45;
@@ -747,6 +832,10 @@
         writeMode: storedSettings.writeMode || 'auto',
         discoveryMode: storedSettings.discoveryMode || 'filtered',
         restoredDeviceCount: 0,
+        effectId: storedSettings.effectId || 'jump_rgb',
+        effectSpeed: storedSettings.effectSpeed || 50,
+        effectSensitivity: storedSettings.effectSensitivity || 100,
+        writeChain: Promise.resolve(),
         storageType: 'local',
         storageKey: SETTINGS_KEY,
         storageValue: '',
@@ -822,6 +911,10 @@
           return PROTOCOL_PROFILES.find((profile) => profile.id === this.protocolId) || PROTOCOL_PROFILES[0];
         },
 
+        get effectOptions() {
+          return BLEDOM_EFFECTS;
+        },
+
         get deviceName() {
           return this.device?.name || 'No device selected';
         },
@@ -880,7 +973,12 @@
           if (!['filtered', 'wide'].includes(this.discoveryMode)) {
             this.discoveryMode = 'filtered';
           }
+          if (!BLEDOM_EFFECTS.some((effect) => effect.id === this.effectId)) {
+            this.effectId = 'jump_rgb';
+          }
           this.brightness = Math.max(1, Math.min(100, Number(this.brightness) || 100));
+          this.effectSpeed = Math.max(0, Math.min(100, Number(this.effectSpeed) || 50));
+          this.effectSensitivity = Math.max(0, Math.min(255, Number(this.effectSensitivity) || 100));
           this.baseColor = {
             r: clampByte(this.baseColor.r),
             g: clampByte(this.baseColor.g),
@@ -900,6 +998,9 @@
               baseColor: this.baseColor,
               brightness: Number(this.brightness),
               selectedHex: this.selectedHex,
+              effectId: this.effectId,
+              effectSpeed: Number(this.effectSpeed),
+              effectSensitivity: Number(this.effectSensitivity),
               deviceName: this.device?.name || ''
             }));
           } catch (error) {
@@ -1317,7 +1418,18 @@
         handleBrightnessInput() {
           this.brightness = Number(this.brightness);
           this.saveSettings();
+          if (this.activeProtocol.brightness) {
+            this.queueNativeBrightnessWrite();
+          }
           this.queueColorWrite();
+        },
+
+        queueNativeBrightnessWrite() {
+          if (!this.connected || !this.characteristic || !this.activeProtocol.brightness) return;
+          window.clearTimeout(this.brightnessTimer);
+          this.brightnessTimer = window.setTimeout(() => {
+            this.sendNativeBrightness();
+          }, 80);
         },
 
         queueColorWrite() {
@@ -1353,6 +1465,21 @@
             await this.writePacket(packet, { preferWithoutResponse: true });
           } catch (error) {
             this.statusMessage = `Color write failed: ${error.message}`;
+            this.log(this.statusMessage);
+          }
+        },
+
+        async sendNativeBrightness() {
+          if (!this.connected || !this.characteristic || !this.activeProtocol.brightness) {
+            this.log('Native brightness command is not available for this profile');
+            return;
+          }
+
+          try {
+            await this.writePacket(this.activeProtocol.brightness(Number(this.brightness)), { preferWithoutResponse: false });
+            this.log(`Native brightness sent: ${this.brightness}%`);
+          } catch (error) {
+            this.statusMessage = `Brightness write failed: ${error.message}`;
             this.log(this.statusMessage);
           }
         },
@@ -1444,11 +1571,49 @@
           }
         },
 
+        async sendEffect() {
+          if (!this.connected || !this.characteristic || !this.activeProtocol.effect) {
+            this.log('Effect commands are only available for a compatible 0x7e profile');
+            return;
+          }
+
+          const effect = BLEDOM_EFFECTS.find((item) => item.id === this.effectId) || BLEDOM_EFFECTS[0];
+          this.saveSettings();
+
+          try {
+            if (this.activeProtocol.speed) {
+              await this.writePacket(this.activeProtocol.speed(Number(this.effectSpeed)), { preferWithoutResponse: false });
+              this.log(`Effect speed sent: ${this.effectSpeed}`);
+            }
+
+            if (effect.type === 'dynamic' && this.activeProtocol.dynamic) {
+              await this.writePacket(this.activeProtocol.dynamic(effect.code), { preferWithoutResponse: false });
+              if (this.activeProtocol.sensitivity) {
+                await this.writePacket(this.activeProtocol.sensitivity(Number(this.effectSensitivity)), { preferWithoutResponse: false });
+                this.log(`Dynamic sensitivity sent: ${this.effectSensitivity}`);
+              }
+            } else {
+              await this.writePacket(this.activeProtocol.effect(effect.code), { preferWithoutResponse: false });
+            }
+
+            this.log(`Effect sent: ${effect.label}`);
+          } catch (error) {
+            this.statusMessage = `Effect write failed: ${error.message}`;
+            this.log(this.statusMessage);
+          }
+        },
+
         async writePacket(packet, options = {}) {
           if (!this.characteristic) {
             throw new Error('No writable BLE characteristic is connected.');
           }
 
+          const runWrite = () => this.performWritePacket(packet, options);
+          this.writeChain = this.writeChain.then(runWrite, runWrite);
+          return this.writeChain;
+        },
+
+        async performWritePacket(packet, options = {}) {
           const data = new Uint8Array(packet);
           this.lastCommandHex = toHexPacket(data);
           const canWriteWithoutResponse = this.characteristic.properties.writeWithoutResponse && this.characteristic.writeValueWithoutResponse;

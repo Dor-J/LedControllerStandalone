@@ -79,6 +79,10 @@ test('contains default LED command packets', () => {
     'powerOff: () => [0x56, 0x00, 0x00, 0x00, 0x00, 0xf0, 0xaa]',
     'color: (r, g, b) => [0x56, r, g, b, 0x00, 0xf0, 0xaa]',
     'color: (r, g, b) => [0x7e, 0x00, 0x05, 0x03, r, g, b, 0x00, 0xef]',
+    'brightness: (level) => [0x7e, 0x00, 0x01',
+    'speed: (speed) => [0x7e, 0x00, 0x02',
+    'effect: (effectCode) => [0x7e, 0x00, 0x03',
+    'sensitivity: (level) => [0x7e, 0x00, 0x07',
     'new Uint8Array(packet)'
   ]);
 });
@@ -106,6 +110,10 @@ test('keeps color, brightness, power, and debug controls wired', () => {
     '@click="clearStorageArea"',
     'navigator.bluetooth.getDevices',
     'CHANNEL_ORDERS',
+    'BLEDOM_EFFECTS',
+    '@click="sendNativeBrightness"',
+    '@click="sendEffect"',
+    'this.writeChain = this.writeChain.then',
     'Protocol options',
     '@click="sendTestSequence"',
     '@click="togglePower"',
