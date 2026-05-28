@@ -208,7 +208,87 @@
 
             <div class="rounded-lg border border-amber-300/20 bg-amber-300/[0.08] p-3 text-amber-50/80">
               <i class="fa-solid fa-circle-info mr-2 text-amber-200" aria-hidden="true"></i>
-              Generic BLE strips can use different services, characteristics, or byte protocols. The command constants are grouped near the top of the JavaScript for easy protocol customization.
+              Generic BLE strips can use different services, characteristics, or byte protocols. Try wide scan, channel order, and protocol profile changes if pairing works but commands fail.
+            </div>
+
+            <div class="soft-glass rounded-lg p-3">
+              <div class="mb-3 flex items-center justify-between gap-3">
+                <p class="font-semibold text-white">Protocol options</p>
+                <button
+                  type="button"
+                  @click="resetProtocolSettings"
+                  class="rounded-md border border-white/10 bg-white/[0.06] px-2.5 py-1.5 text-xs font-semibold text-slate-200 transition hover:bg-white/[0.12] focus:outline-none focus:ring-2 focus:ring-white/15"
+                  aria-label="Reset protocol settings"
+                >
+                  Reset
+                </button>
+              </div>
+
+              <div class="grid gap-3">
+                <label class="grid gap-1">
+                  <span class="text-xs font-medium text-slate-400">Discovery</span>
+                  <select
+                    v-model="discoveryMode"
+                    @change="saveSettings"
+                    class="min-h-11 rounded-lg border border-white/10 bg-slate-950/70 px-3 py-2 text-sm text-white focus:outline-none focus:ring-2 focus:ring-cyan-300/30"
+                    aria-label="Bluetooth discovery mode"
+                  >
+                    <option value="filtered">Likely LED names</option>
+                    <option value="wide">Wide scan</option>
+                  </select>
+                </label>
+
+                <label class="grid gap-1">
+                  <span class="text-xs font-medium text-slate-400">Protocol profile</span>
+                  <select
+                    v-model="protocolId"
+                    @change="handleProtocolSettingChange"
+                    class="min-h-11 rounded-lg border border-white/10 bg-slate-950/70 px-3 py-2 text-sm text-white focus:outline-none focus:ring-2 focus:ring-cyan-300/30"
+                    aria-label="LED command protocol profile"
+                  >
+                    <option v-for="profile in protocolProfiles" :value="profile.id">{{ profile.label }}</option>
+                  </select>
+                </label>
+
+                <div class="grid grid-cols-2 gap-3">
+                  <label class="grid gap-1">
+                    <span class="text-xs font-medium text-slate-400">Channel order</span>
+                    <select
+                      v-model="channelOrder"
+                      @change="handleProtocolSettingChange"
+                      class="min-h-11 rounded-lg border border-white/10 bg-slate-950/70 px-3 py-2 text-sm text-white focus:outline-none focus:ring-2 focus:ring-cyan-300/30"
+                      aria-label="RGB channel order"
+                    >
+                      <option v-for="order in channelOrders" :value="order">{{ order }}</option>
+                    </select>
+                  </label>
+
+                  <label class="grid gap-1">
+                    <span class="text-xs font-medium text-slate-400">Write mode</span>
+                    <select
+                      v-model="writeMode"
+                      @change="saveSettings"
+                      class="min-h-11 rounded-lg border border-white/10 bg-slate-950/70 px-3 py-2 text-sm text-white focus:outline-none focus:ring-2 focus:ring-cyan-300/30"
+                      aria-label="BLE write mode"
+                    >
+                      <option value="auto">Auto</option>
+                      <option value="with-response">With response</option>
+                      <option value="without-response">Without response</option>
+                    </select>
+                  </label>
+                </div>
+
+                <button
+                  type="button"
+                  @click="sendTestSequence"
+                  :disabled="!connected"
+                  class="tap-target inline-flex items-center justify-center gap-2 rounded-lg border border-cyan-300/25 bg-cyan-400/[0.10] px-4 py-3 text-sm font-semibold text-cyan-100 transition hover:bg-cyan-400/[0.16] focus:outline-none focus:ring-4 focus:ring-cyan-300/20 disabled:cursor-not-allowed disabled:text-slate-500"
+                  aria-label="Send protocol test sequence"
+                >
+                  <i class="fa-solid fa-vial" aria-hidden="true"></i>
+                  <span>Test Protocol</span>
+                </button>
+              </div>
             </div>
 
             <div class="soft-glass max-h-72 overflow-auto rounded-lg p-3" aria-live="polite">
@@ -362,7 +442,13 @@
       { namePrefix: 'BLE' },
       { namePrefix: 'Magic' },
       { namePrefix: 'Triones' },
-      { namePrefix: 'Happy' }
+      { namePrefix: 'Happy' },
+      { namePrefix: 'BLEDOM' },
+      { namePrefix: 'ELK-BLEDOM' },
+      { namePrefix: 'Lotus' },
+      { namePrefix: 'SP' },
+      { namePrefix: 'QHM' },
+      { namePrefix: 'HM' }
     ];
 
     // Common BLE LED strip services requested during pairing.
@@ -370,9 +456,17 @@
       0xffe5,
       0xffe0,
       0xfff0,
+      0xffb0,
+      0xffd5,
+      0xae00,
+      0x180a,
       '0000ffe5-0000-1000-8000-00805f9b34fb',
       '0000ffe0-0000-1000-8000-00805f9b34fb',
-      '0000fff0-0000-1000-8000-00805f9b34fb'
+      '0000fff0-0000-1000-8000-00805f9b34fb',
+      '0000ffb0-0000-1000-8000-00805f9b34fb',
+      '0000ffd5-0000-1000-8000-00805f9b34fb',
+      '0000ae00-0000-1000-8000-00805f9b34fb',
+      '0000180a-0000-1000-8000-00805f9b34fb'
     ];
 
     // Known/common writable service and characteristic combinations.
@@ -380,6 +474,9 @@
       { service: 0xffe5, characteristic: 0xffe9 },
       { service: 0xffe0, characteristic: 0xffe1 },
       { service: 0xfff0, characteristic: 0xfff3 },
+      { service: 0xffb0, characteristic: 0xffb1 },
+      { service: 0xffd5, characteristic: 0xffd9 },
+      { service: 0xae00, characteristic: 0xae01 },
       {
         service: '0000ffe5-0000-1000-8000-00805f9b34fb',
         characteristic: '0000ffe9-0000-1000-8000-00805f9b34fb'
@@ -391,18 +488,59 @@
       {
         service: '0000fff0-0000-1000-8000-00805f9b34fb',
         characteristic: '0000fff3-0000-1000-8000-00805f9b34fb'
+      },
+      {
+        service: '0000ffb0-0000-1000-8000-00805f9b34fb',
+        characteristic: '0000ffb1-0000-1000-8000-00805f9b34fb'
+      },
+      {
+        service: '0000ffd5-0000-1000-8000-00805f9b34fb',
+        characteristic: '0000ffd9-0000-1000-8000-00805f9b34fb'
+      },
+      {
+        service: '0000ae00-0000-1000-8000-00805f9b34fb',
+        characteristic: '0000ae01-0000-1000-8000-00805f9b34fb'
       }
     ];
 
     /*
-      Default generic LED strip command protocol.
-      Edit these helpers if your strip uses a slightly different byte sequence.
+      LED command protocol profiles.
+      These are intentionally visible and editable because generic BLE LED strips
+      often ship with similar hardware but different byte protocols.
     */
-    const LED_COMMANDS = {
-      powerOn: () => [0x56, 0x00, 0x00, 0x00, 0xaa, 0xf0, 0xaa],
-      powerOff: () => [0x56, 0x00, 0x00, 0x00, 0x00, 0xf0, 0xaa],
-      color: (r, g, b) => [0x56, r, g, b, 0x00, 0xf0, 0xaa]
-    };
+    const PROTOCOL_PROFILES = [
+      {
+        id: 'triones-56',
+        label: 'Triones / HappyLighting 0x56',
+        powerOn: () => [0x56, 0x00, 0x00, 0x00, 0xaa, 0xf0, 0xaa],
+        powerOff: () => [0x56, 0x00, 0x00, 0x00, 0x00, 0xf0, 0xaa],
+        color: (r, g, b) => [0x56, r, g, b, 0x00, 0xf0, 0xaa]
+      },
+      {
+        id: 'triones-56-white',
+        label: '0x56 RGBW white byte',
+        powerOn: () => [0x56, 0x00, 0x00, 0x00, 0xaa, 0xf0, 0xaa],
+        powerOff: () => [0x56, 0x00, 0x00, 0x00, 0x00, 0xf0, 0xaa],
+        color: (r, g, b) => [0x56, r, g, b, 0x00, 0x0f, 0xaa]
+      },
+      {
+        id: 'ledenet-7e',
+        label: 'LEDENET / Magic Home 0x7e',
+        powerOn: () => [0x7e, 0x00, 0x04, 0x04, 0x01, 0xff, 0x00, 0xef],
+        powerOff: () => [0x7e, 0x00, 0x04, 0x04, 0x00, 0xff, 0x00, 0xef],
+        color: (r, g, b) => [0x7e, 0x00, 0x05, 0x03, r, g, b, 0x00, 0xef]
+      },
+      {
+        id: 'three-byte-cc',
+        label: 'Simple CC power + RGB',
+        powerOn: () => [0xcc, 0x23, 0x33],
+        powerOff: () => [0xcc, 0x24, 0x33],
+        color: (r, g, b) => [0x56, r, g, b, 0x00, 0xf0, 0xaa]
+      }
+    ];
+
+    const CHANNEL_ORDERS = ['RGB', 'RBG', 'GRB', 'GBR', 'BRG', 'BGR'];
+    const SETTINGS_KEY = 'ble-led-controller-settings-v2';
 
     const COLOR_WRITE_THROTTLE_MS = 45;
 
@@ -459,7 +597,21 @@
       ].filter(Boolean).join(', ') || 'no writable/readable flags';
     }
 
+    function loadStoredSettings() {
+      try {
+        return JSON.parse(localStorage.getItem(SETTINGS_KEY) || '{}');
+      } catch (error) {
+        return {};
+      }
+    }
+
+    function clampByte(value) {
+      return Math.max(0, Math.min(255, Math.round(Number(value) || 0)));
+    }
+
     window.LedApp = function LedApp() {
+      const storedSettings = loadStoredSettings();
+
       return {
         supported: false,
         secureContext: false,
@@ -470,10 +622,10 @@
         server: null,
         characteristic: null,
         connected: false,
-        poweredOn: true,
-        baseColor: { r: 255, g: 0, b: 0 },
-        brightness: 100,
-        selectedHex: '#ff0000',
+        poweredOn: storedSettings.poweredOn ?? true,
+        baseColor: storedSettings.baseColor || { r: 255, g: 0, b: 0 },
+        brightness: storedSettings.brightness || 100,
+        selectedHex: storedSettings.selectedHex || '#ff0000',
         lastCommandHex: '',
         activeService: '',
         activeCharacteristic: '',
@@ -484,6 +636,11 @@
         pendingColorWrite: false,
         reconnecting: false,
         disconnectHandler: null,
+        protocolId: storedSettings.protocolId || 'triones-56',
+        channelOrder: storedSettings.channelOrder || 'RGB',
+        writeMode: storedSettings.writeMode || 'auto',
+        discoveryMode: storedSettings.discoveryMode || 'filtered',
+        restoredDeviceCount: 0,
 
         get statusLabel() {
           if (this.status === 'scanning') return 'Scanning';
@@ -542,6 +699,18 @@
           return this.connected && this.poweredOn && !!this.characteristic;
         },
 
+        get protocolProfiles() {
+          return PROTOCOL_PROFILES;
+        },
+
+        get channelOrders() {
+          return CHANNEL_ORDERS;
+        },
+
+        get activeProtocol() {
+          return PROTOCOL_PROFILES.find((profile) => profile.id === this.protocolId) || PROTOCOL_PROFILES[0];
+        },
+
         get deviceName() {
           return this.device?.name || 'No device selected';
         },
@@ -563,9 +732,11 @@
         },
 
         mounted() {
+          this.normalizeSettings();
           this.checkSupport();
           this.initColorPicker();
           this.installDebugListeners();
+          this.restoreGrantedDevices();
           this.log(this.statusMessage || 'App ready');
         },
 
@@ -582,6 +753,75 @@
               this.log(`Bluetooth availability changed: ${event.value ? 'available' : 'unavailable'}`);
             });
           }
+        },
+
+        normalizeSettings() {
+          if (!PROTOCOL_PROFILES.some((profile) => profile.id === this.protocolId)) {
+            this.protocolId = 'triones-56';
+          }
+          if (!CHANNEL_ORDERS.includes(this.channelOrder)) {
+            this.channelOrder = 'RGB';
+          }
+          if (!['auto', 'with-response', 'without-response'].includes(this.writeMode)) {
+            this.writeMode = 'auto';
+          }
+          if (!['filtered', 'wide'].includes(this.discoveryMode)) {
+            this.discoveryMode = 'filtered';
+          }
+          this.brightness = Math.max(1, Math.min(100, Number(this.brightness) || 100));
+          this.baseColor = {
+            r: clampByte(this.baseColor.r),
+            g: clampByte(this.baseColor.g),
+            b: clampByte(this.baseColor.b)
+          };
+          this.saveSettings();
+        },
+
+        saveSettings() {
+          try {
+            localStorage.setItem(SETTINGS_KEY, JSON.stringify({
+              protocolId: this.protocolId,
+              channelOrder: this.channelOrder,
+              writeMode: this.writeMode,
+              discoveryMode: this.discoveryMode,
+              poweredOn: this.poweredOn,
+              baseColor: this.baseColor,
+              brightness: Number(this.brightness),
+              selectedHex: this.selectedHex,
+              deviceName: this.device?.name || ''
+            }));
+          } catch (error) {
+            this.log(`Could not persist settings: ${getErrorMessage(error)}`);
+          }
+        },
+
+        async restoreGrantedDevices() {
+          if (!navigator.bluetooth?.getDevices) {
+            this.log('Bluetooth getDevices() is not available; reconnect after reload requires pairing prompt');
+            return;
+          }
+
+          try {
+            const devices = await navigator.bluetooth.getDevices();
+            this.restoredDeviceCount = devices.length;
+            this.log(`Browser returned ${devices.length} previously granted Bluetooth device(s)`);
+            const likelyDevice = devices.find((device) => this.isLikelyLedDevice(device)) || devices[0];
+
+            if (likelyDevice && !this.device) {
+              this.device = likelyDevice;
+              this.attachDisconnectHandler(likelyDevice);
+              this.status = 'disconnected';
+              this.statusMessage = `Found saved device ${likelyDevice.name || 'LED strip'}. Tap Reconnect.`;
+              this.log(`Restored granted device reference: ${describeDevice(likelyDevice)}`);
+            }
+          } catch (error) {
+            this.log(`Could not restore granted Bluetooth devices: ${getErrorMessage(error)}`);
+          }
+        },
+
+        isLikelyLedDevice(device) {
+          const name = (device?.name || '').toLowerCase();
+          return ['elk', 'led', 'ble', 'magic', 'triones', 'happy', 'bledom', 'lotus', 'sp', 'qhm'].some((part) => name.includes(part));
         },
 
         checkSupport() {
@@ -620,6 +860,7 @@
             const rgb = color.rgb;
             this.baseColor = { r: rgb.r, g: rgb.g, b: rgb.b };
             this.selectedHex = color.hexString;
+            this.saveSettings();
             this.queueColorWrite();
           });
 
@@ -645,16 +886,18 @@
           this.status = 'scanning';
           this.statusMessage = 'Scanning for likely BLE LED strip devices...';
           this.log('Opening native Bluetooth pairing prompt');
-          this.log(`Request filters: ${LED_DEVICE_FILTERS.map((filter) => filter.namePrefix).join(', ')}`);
+          this.log(`Discovery mode: ${this.discoveryMode}`);
+          this.log(`Request filters: ${this.discoveryMode === 'wide' ? 'acceptAllDevices' : LED_DEVICE_FILTERS.map((filter) => filter.namePrefix).join(', ')}`);
           this.log(`Optional services requested: ${OPTIONAL_SERVICES.map(String).join(', ')}`);
 
           try {
-            const device = await navigator.bluetooth.requestDevice({
-              filters: LED_DEVICE_FILTERS,
-              optionalServices: OPTIONAL_SERVICES
-            });
+            const requestOptions = this.discoveryMode === 'wide'
+              ? { acceptAllDevices: true, optionalServices: OPTIONAL_SERVICES }
+              : { filters: LED_DEVICE_FILTERS, optionalServices: OPTIONAL_SERVICES };
+            const device = await navigator.bluetooth.requestDevice(requestOptions);
 
             this.device = device;
+            this.saveSettings();
             this.attachDisconnectHandler(device);
             this.log(`Device selected: ${describeDevice(device)}`);
             this.statusMessage = `Connecting to ${device.name || 'selected device'}...`;
@@ -802,7 +1045,8 @@
 
           const previousPowerState = this.poweredOn;
           this.poweredOn = !this.poweredOn;
-          const command = this.poweredOn ? LED_COMMANDS.powerOn() : LED_COMMANDS.powerOff();
+          this.saveSettings();
+          const command = this.buildPowerPacket(this.poweredOn);
 
           try {
             await this.writePacket(command, { preferWithoutResponse: false });
@@ -813,6 +1057,7 @@
             }
           } catch (error) {
             this.poweredOn = previousPowerState;
+            this.saveSettings();
             this.statusMessage = `Power command failed: ${error.message}`;
             this.log(this.statusMessage);
           }
@@ -824,12 +1069,14 @@
           if (!this.poweredOn) {
             const previousPowerState = this.poweredOn;
             this.poweredOn = true;
+            this.saveSettings();
 
             try {
-              await this.writePacket(LED_COMMANDS.powerOn(), { preferWithoutResponse: false });
+              await this.writePacket(this.buildPowerPacket(true), { preferWithoutResponse: false });
               this.log('Power on command sent');
             } catch (error) {
               this.poweredOn = previousPowerState;
+              this.saveSettings();
               this.statusMessage = `Power command failed: ${error.message}`;
               this.log(this.statusMessage);
               return;
@@ -841,6 +1088,7 @@
 
         handleBrightnessInput() {
           this.brightness = Number(this.brightness);
+          this.saveSettings();
           this.queueColorWrite();
         },
 
@@ -871,7 +1119,7 @@
           if (!this.canSendColor) return;
 
           const color = this.scaledColor;
-          const packet = LED_COMMANDS.color(color.r, color.g, color.b);
+          const packet = this.buildColorPacket(color);
 
           try {
             await this.writePacket(packet, { preferWithoutResponse: true });
@@ -895,6 +1143,79 @@
           };
         },
 
+        applyChannelOrder(color) {
+          const source = {
+            R: clampByte(color.r),
+            G: clampByte(color.g),
+            B: clampByte(color.b)
+          };
+          return {
+            r: source[this.channelOrder[0]],
+            g: source[this.channelOrder[1]],
+            b: source[this.channelOrder[2]]
+          };
+        },
+
+        buildPowerPacket(poweredOn) {
+          const packet = poweredOn ? this.activeProtocol.powerOn() : this.activeProtocol.powerOff();
+          this.log(`Built ${poweredOn ? 'power on' : 'power off'} packet with profile ${this.activeProtocol.label}`);
+          return packet;
+        },
+
+        buildColorPacket(color) {
+          const ordered = this.applyChannelOrder(color);
+          const packet = this.activeProtocol.color(ordered.r, ordered.g, ordered.b);
+          this.log(`Built color packet profile=${this.activeProtocol.label}, order=${this.channelOrder}, rgb=${ordered.r},${ordered.g},${ordered.b}`);
+          return packet;
+        },
+
+        handleProtocolSettingChange() {
+          this.saveSettings();
+          this.log(`Protocol settings changed: profile=${this.activeProtocol.label}, order=${this.channelOrder}, write=${this.writeMode}`);
+          this.queueColorWrite();
+        },
+
+        resetProtocolSettings() {
+          this.protocolId = 'triones-56';
+          this.channelOrder = 'RGB';
+          this.writeMode = 'auto';
+          this.discoveryMode = 'filtered';
+          this.saveSettings();
+          this.log('Protocol settings reset to defaults');
+        },
+
+        async sendTestSequence() {
+          if (!this.connected || !this.characteristic) return;
+          this.log(`Starting protocol test: ${this.activeProtocol.label}, channel order ${this.channelOrder}`);
+
+          const previousPowerState = this.poweredOn;
+          this.poweredOn = true;
+          this.saveSettings();
+
+          try {
+            await this.writePacket(this.buildPowerPacket(true), { preferWithoutResponse: false });
+            const colors = [
+              { label: 'red', value: { r: 255, g: 0, b: 0 } },
+              { label: 'green', value: { r: 0, g: 255, b: 0 } },
+              { label: 'blue', value: { r: 0, g: 0, b: 255 } }
+            ];
+
+            for (const item of colors) {
+              this.log(`Protocol test color: ${item.label}`);
+              await this.writePacket(this.buildColorPacket(item.value), { preferWithoutResponse: false });
+              await new Promise((resolve) => window.setTimeout(resolve, 350));
+            }
+
+            await this.sendCurrentColorNow();
+            this.log('Protocol test completed');
+          } catch (error) {
+            this.poweredOn = previousPowerState;
+            this.saveSettings();
+            this.statusMessage = `Protocol test failed: ${error.message}`;
+            this.log(this.statusMessage);
+          }
+        },
+
         async writePacket(packet, options = {}) {
           if (!this.characteristic) {
             throw new Error('No writable BLE characteristic is connected.');
@@ -902,9 +1223,14 @@
 
           const data = new Uint8Array(packet);
           this.lastCommandHex = toHexPacket(data);
-          const useWithoutResponse = options.preferWithoutResponse && this.characteristic.properties.writeWithoutResponse && this.characteristic.writeValueWithoutResponse;
+          const canWriteWithoutResponse = this.characteristic.properties.writeWithoutResponse && this.characteristic.writeValueWithoutResponse;
+          const useWithoutResponse = this.writeMode === 'without-response'
+            ? canWriteWithoutResponse
+            : this.writeMode === 'with-response'
+              ? false
+              : options.preferWithoutResponse && canWriteWithoutResponse;
           const writeMethod = useWithoutResponse ? 'writeValueWithoutResponse' : 'writeValue';
-          this.log(`BLE write start via ${writeMethod}: ${this.lastCommandHex}`);
+          this.log(`BLE write start via ${writeMethod} mode=${this.writeMode}: ${this.lastCommandHex}`);
 
           try {
             if (useWithoutResponse) {

@@ -13,6 +13,9 @@ The app lives in `src/index.html` and uses the browser-native Web Bluetooth API 
 - Adjust brightness from 1% to 100%.
 - Send throttled RGB updates for smoother color changes.
 - Disconnect and reconnect to a previously selected device during the same browser session.
+- Restore browser-granted devices with `navigator.bluetooth.getDevices()` when the browser supports it.
+- Use filtered discovery or wide scan for devices with unexpected names.
+- Try multiple protocol profiles, RGB channel orders, and BLE write modes from the UI.
 - View connection state, active BLE target, last command bytes, and detailed status logs.
 - Copy or clear debug logs from the Advanced / Debug card while testing connection drops.
 
@@ -81,6 +84,15 @@ color:    [0x56, r, g, b, 0x00, 0xf0, 0xaa]
 ```
 
 Some generic LED strips use different BLE services, characteristics, or packet formats. If pairing works but commands do not affect the strip, update those constants and the writable target list in `src/index.html`.
+
+The **Advanced / Debug** card also exposes runtime protocol options:
+
+- **Discovery**: filtered LED-like names or wide scan.
+- **Protocol profile**: common 0x56 and 0x7e packet families plus experimental variants.
+- **Channel order**: RGB, RBG, GRB, GBR, BRG, or BGR for strips with swapped color channels.
+- **Write mode**: automatic, with response, or without response.
+
+These settings are stored in `localStorage`, along with the last color and brightness. Browser Bluetooth permissions are controlled by the browser; if `navigator.bluetooth.getDevices()` is available, the app will offer reconnect to previously granted devices after reload.
 
 ## Debugging Connection Drops
 

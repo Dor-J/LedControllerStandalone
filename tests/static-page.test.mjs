@@ -60,6 +60,8 @@ test('uses expected BLE discovery filters and optional services', () => {
     "{ namePrefix: 'Magic' }",
     "{ namePrefix: 'Triones' }",
     "{ namePrefix: 'Happy' }",
+    "{ namePrefix: 'ELK-BLEDOM' }",
+    'acceptAllDevices: true',
     '0xffe5',
     '0xffe0',
     '0xfff0',
@@ -71,9 +73,12 @@ test('uses expected BLE discovery filters and optional services', () => {
 
 test('contains default LED command packets', () => {
   includesAll(html, [
+    "id: 'triones-56'",
+    "id: 'ledenet-7e'",
     'powerOn: () => [0x56, 0x00, 0x00, 0x00, 0xaa, 0xf0, 0xaa]',
     'powerOff: () => [0x56, 0x00, 0x00, 0x00, 0x00, 0xf0, 0xaa]',
     'color: (r, g, b) => [0x56, r, g, b, 0x00, 0xf0, 0xaa]',
+    'color: (r, g, b) => [0x7e, 0x00, 0x05, 0x03, r, g, b, 0x00, 0xef]',
     'new Uint8Array(packet)'
   ]);
 });
@@ -91,6 +96,11 @@ test('keeps color, brightness, power, and debug controls wired', () => {
     'new iro.ColorPicker',
     'COLOR_WRITE_THROTTLE_MS',
     'scaleColor(color, brightness)',
+    'localStorage.setItem(SETTINGS_KEY',
+    'navigator.bluetooth.getDevices',
+    'CHANNEL_ORDERS',
+    'Protocol options',
+    '@click="sendTestSequence"',
     '@click="togglePower"',
     '@input="handleBrightnessInput"',
     '@click="copyLogs"',
