@@ -291,6 +291,112 @@
               </div>
             </div>
 
+            <div class="soft-glass rounded-lg p-3">
+              <div class="mb-3 flex items-center justify-between gap-3">
+                <p class="font-semibold text-white">Storage CRUD</p>
+                <button
+                  type="button"
+                  @click="refreshStorageKeys"
+                  class="rounded-md border border-white/10 bg-white/[0.06] px-2.5 py-1.5 text-xs font-semibold text-slate-200 transition hover:bg-white/[0.12] focus:outline-none focus:ring-2 focus:ring-white/15"
+                  aria-label="Refresh storage keys"
+                >
+                  <i class="fa-solid fa-rotate" aria-hidden="true"></i>
+                  <span class="sr-only">Refresh storage keys</span>
+                </button>
+              </div>
+
+              <div class="grid gap-3">
+                <div class="grid grid-cols-2 gap-3">
+                  <label class="grid gap-1">
+                    <span class="text-xs font-medium text-slate-400">Storage</span>
+                    <select
+                      v-model="storageType"
+                      @change="handleStorageTypeChange"
+                      class="min-h-11 rounded-lg border border-white/10 bg-slate-950/70 px-3 py-2 text-sm text-white focus:outline-none focus:ring-2 focus:ring-cyan-300/30"
+                      aria-label="Storage type"
+                    >
+                      <option value="local">localStorage</option>
+                      <option value="session">sessionStorage</option>
+                    </select>
+                  </label>
+
+                  <label class="grid gap-1">
+                    <span class="text-xs font-medium text-slate-400">Saved keys</span>
+                    <select
+                      v-model="storageSelectedKey"
+                      @change="loadSelectedStorageKey"
+                      class="min-h-11 rounded-lg border border-white/10 bg-slate-950/70 px-3 py-2 text-sm text-white focus:outline-none focus:ring-2 focus:ring-cyan-300/30"
+                      aria-label="Saved storage keys"
+                    >
+                      <option value="">Select key</option>
+                      <option v-for="key in storageKeys" :value="key">{{ key }}</option>
+                    </select>
+                  </label>
+                </div>
+
+                <label class="grid gap-1">
+                  <span class="text-xs font-medium text-slate-400">Key</span>
+                  <input
+                    type="text"
+                    v-model="storageKey"
+                    class="min-h-11 rounded-lg border border-white/10 bg-slate-950/70 px-3 py-2 text-sm text-white placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-cyan-300/30"
+                    placeholder="ble-led-controller-settings-v2"
+                    aria-label="Storage key"
+                  >
+                </label>
+
+                <label class="grid gap-1">
+                  <span class="text-xs font-medium text-slate-400">Value</span>
+                  <textarea
+                    v-model="storageValue"
+                    rows="5"
+                    class="rounded-lg border border-white/10 bg-slate-950/70 px-3 py-2 font-mono text-xs text-white placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-cyan-300/30"
+                    placeholder='{"protocolId":"triones-56"}'
+                    aria-label="Storage value"
+                  ></textarea>
+                </label>
+
+                <div class="grid grid-cols-2 gap-2 sm:grid-cols-4">
+                  <button
+                    type="button"
+                    @click="createStorageItem"
+                    class="min-h-11 rounded-lg bg-emerald-400 px-3 py-2 text-sm font-bold text-slate-950 transition hover:bg-emerald-300 focus:outline-none focus:ring-4 focus:ring-emerald-300/25"
+                  >
+                    Create
+                  </button>
+                  <button
+                    type="button"
+                    @click="readStorageItem"
+                    class="min-h-11 rounded-lg border border-white/15 bg-white/[0.08] px-3 py-2 text-sm font-semibold text-white transition hover:bg-white/[0.12] focus:outline-none focus:ring-4 focus:ring-white/15"
+                  >
+                    Read
+                  </button>
+                  <button
+                    type="button"
+                    @click="updateStorageItem"
+                    class="min-h-11 rounded-lg bg-cyan-400 px-3 py-2 text-sm font-bold text-slate-950 transition hover:bg-cyan-300 focus:outline-none focus:ring-4 focus:ring-cyan-300/25"
+                  >
+                    Update
+                  </button>
+                  <button
+                    type="button"
+                    @click="deleteStorageItem"
+                    class="min-h-11 rounded-lg border border-rose-300/30 bg-rose-400/[0.12] px-3 py-2 text-sm font-semibold text-rose-100 transition hover:bg-rose-400/[0.18] focus:outline-none focus:ring-4 focus:ring-rose-300/20"
+                  >
+                    Delete
+                  </button>
+                </div>
+
+                <button
+                  type="button"
+                  @click="clearStorageArea"
+                  class="min-h-11 rounded-lg border border-white/10 bg-white/[0.06] px-3 py-2 text-sm font-semibold text-slate-200 transition hover:bg-white/[0.12] focus:outline-none focus:ring-4 focus:ring-white/15"
+                >
+                  Clear {{ storageType === 'local' ? 'localStorage' : 'sessionStorage' }}
+                </button>
+              </div>
+            </div>
+
             <div class="soft-glass max-h-72 overflow-auto rounded-lg p-3" aria-live="polite">
               <div class="mb-2 flex items-center justify-between gap-3">
                 <p class="text-slate-400">Status log</p>
@@ -641,6 +747,11 @@
         writeMode: storedSettings.writeMode || 'auto',
         discoveryMode: storedSettings.discoveryMode || 'filtered',
         restoredDeviceCount: 0,
+        storageType: 'local',
+        storageKey: SETTINGS_KEY,
+        storageValue: '',
+        storageSelectedKey: '',
+        storageKeys: [],
 
         get statusLabel() {
           if (this.status === 'scanning') return 'Scanning';
@@ -736,6 +847,7 @@
           this.checkSupport();
           this.initColorPicker();
           this.installDebugListeners();
+          this.refreshStorageKeys();
           this.restoreGrantedDevices();
           this.log(this.statusMessage || 'App ready');
         },
@@ -792,6 +904,122 @@
             }));
           } catch (error) {
             this.log(`Could not persist settings: ${getErrorMessage(error)}`);
+          }
+        },
+
+        getStorageArea() {
+          return this.storageType === 'session' ? sessionStorage : localStorage;
+        },
+
+        refreshStorageKeys() {
+          try {
+            const storage = this.getStorageArea();
+            this.storageKeys = Array.from({ length: storage.length }, (_, index) => storage.key(index)).filter(Boolean).sort();
+            this.log(`Loaded ${this.storageKeys.length} ${this.storageType} storage key(s)`);
+          } catch (error) {
+            this.log(`Could not list ${this.storageType} storage keys: ${getErrorMessage(error)}`);
+          }
+        },
+
+        handleStorageTypeChange() {
+          this.storageSelectedKey = '';
+          this.storageValue = '';
+          this.refreshStorageKeys();
+        },
+
+        loadSelectedStorageKey() {
+          if (!this.storageSelectedKey) return;
+          this.storageKey = this.storageSelectedKey;
+          this.readStorageItem();
+        },
+
+        createStorageItem() {
+          if (!this.storageKey.trim()) {
+            this.log('Storage create skipped: key is empty');
+            return;
+          }
+
+          const storage = this.getStorageArea();
+          if (storage.getItem(this.storageKey) !== null) {
+            this.log(`Storage create skipped: ${this.storageKey} already exists`);
+            return;
+          }
+
+          this.writeStorageItem('created');
+        },
+
+        readStorageItem() {
+          if (!this.storageKey.trim()) {
+            this.log('Storage read skipped: key is empty');
+            return;
+          }
+
+          try {
+            const storage = this.getStorageArea();
+            const value = storage.getItem(this.storageKey);
+            if (value === null) {
+              this.storageValue = '';
+              this.log(`${this.storageType} storage key not found: ${this.storageKey}`);
+              return;
+            }
+
+            this.storageValue = value;
+            this.log(`Read ${this.storageType} storage key: ${this.storageKey}`);
+          } catch (error) {
+            this.log(`Storage read failed: ${getErrorMessage(error)}`);
+          }
+        },
+
+        updateStorageItem() {
+          if (!this.storageKey.trim()) {
+            this.log('Storage update skipped: key is empty');
+            return;
+          }
+
+          this.writeStorageItem('updated');
+        },
+
+        writeStorageItem(action) {
+          try {
+            this.getStorageArea().setItem(this.storageKey, this.storageValue);
+            this.refreshStorageKeys();
+            this.storageSelectedKey = this.storageKey;
+            this.log(`${this.storageType} storage ${action}: ${this.storageKey}`);
+
+            if (this.storageType === 'local' && this.storageKey === SETTINGS_KEY) {
+              this.log('Settings key changed. Reload the page to apply raw storage edits.');
+            }
+          } catch (error) {
+            this.log(`Storage write failed: ${getErrorMessage(error)}`);
+          }
+        },
+
+        deleteStorageItem() {
+          if (!this.storageKey.trim()) {
+            this.log('Storage delete skipped: key is empty');
+            return;
+          }
+
+          try {
+            this.getStorageArea().removeItem(this.storageKey);
+            this.storageValue = '';
+            this.storageSelectedKey = '';
+            this.refreshStorageKeys();
+            this.log(`Deleted ${this.storageType} storage key: ${this.storageKey}`);
+          } catch (error) {
+            this.log(`Storage delete failed: ${getErrorMessage(error)}`);
+          }
+        },
+
+        clearStorageArea() {
+          try {
+            this.getStorageArea().clear();
+            this.storageValue = '';
+            this.storageSelectedKey = '';
+            this.refreshStorageKeys();
+            this.log(`Cleared ${this.storageType === 'local' ? 'localStorage' : 'sessionStorage'}`);
+          } catch (error) {
+            this.log(`Storage clear failed: ${getErrorMessage(error)}`);
           }
         },
 

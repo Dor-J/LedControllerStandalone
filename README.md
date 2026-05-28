@@ -16,6 +16,7 @@ The app lives in `src/index.html` and uses the browser-native Web Bluetooth API 
 - Restore browser-granted devices with `navigator.bluetooth.getDevices()` when the browser supports it.
 - Use filtered discovery or wide scan for devices with unexpected names.
 - Try multiple protocol profiles, RGB channel orders, and BLE write modes from the UI.
+- Inspect and edit `localStorage` or `sessionStorage` values from the debug UI.
 - View connection state, active BLE target, last command bytes, and detailed status logs.
 - Copy or clear debug logs from the Advanced / Debug card while testing connection drops.
 
@@ -93,6 +94,18 @@ The **Advanced / Debug** card also exposes runtime protocol options:
 - **Write mode**: automatic, with response, or without response.
 
 These settings are stored in `localStorage`, along with the last color and brightness. Browser Bluetooth permissions are controlled by the browser; if `navigator.bluetooth.getDevices()` is available, the app will offer reconnect to previously granted devices after reload.
+
+## Storage Debugging
+
+The **Storage CRUD** panel in **Advanced / Debug** can create, read, update, and delete keys in either `localStorage` or `sessionStorage`. It is useful for checking persisted protocol settings without opening DevTools.
+
+The app's main settings key is:
+
+```text
+ble-led-controller-settings-v2
+```
+
+If you edit that key manually in the UI, reload the page to apply the raw storage value.
 
 ## Debugging Connection Drops
 
