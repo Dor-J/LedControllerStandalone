@@ -46,6 +46,16 @@ http://127.0.0.1:8000/index.html
 
 Do not open `src/index.html` directly with a `file://` URL. Browsers treat local files as isolated origins, which breaks Web Bluetooth and can also interfere with CDN-loaded browser libraries.
 
+## Test
+
+The project includes no-build static tests for the HTML page. They use only Node built-in modules, so there is no `npm install` step.
+
+```bash
+node tests/static-page.test.mjs
+```
+
+The same test runs in GitHub Actions through `.github/workflows/test.yml`.
+
 ## Deploy To GitHub Pages
 
 This repository is prepared for GitHub Pages with a workflow at `.github/workflows/pages.yml`. The workflow publishes the `src` folder directly, so the deployed site root is `src/index.html`.
