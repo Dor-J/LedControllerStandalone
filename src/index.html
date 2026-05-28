@@ -1,0 +1,955 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="dark">
+  <title>BLE LED Strip Controller</title>
+
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css">
+  <script src="https://cdn.jsdelivr.net/npm/@jaames/iro@5"></script>
+  <script src="https://unpkg.com/petite-vue"></script>
+
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          fontFamily: {
+            sans: ['Inter', 'ui-sans-serif', 'system-ui', 'Segoe UI', 'Arial', 'sans-serif']
+          },
+          boxShadow: {
+            glow: '0 0 48px rgba(59, 130, 246, 0.22)'
+          }
+        }
+      }
+    };
+  </script>
+
+  <style>
+    [v-cloak] { display: none; }
+
+    html {
+      background: #061017;
+    }
+
+    body {
+      min-height: 100vh;
+      background:
+        radial-gradient(circle at 10% 0%, rgba(16, 185, 129, 0.18), transparent 30rem),
+        radial-gradient(circle at 90% 12%, rgba(59, 130, 246, 0.22), transparent 34rem),
+        linear-gradient(145deg, #051019 0%, #0b1220 42%, #111827 100%);
+    }
+
+    .glass {
+      border: 1px solid rgba(255, 255, 255, 0.12);
+      background: rgba(15, 23, 42, 0.68);
+      box-shadow: 0 24px 60px rgba(0, 0, 0, 0.34);
+      backdrop-filter: blur(20px);
+      -webkit-backdrop-filter: blur(20px);
+    }
+
+    .soft-glass {
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      background: rgba(255, 255, 255, 0.06);
+      backdrop-filter: blur(14px);
+      -webkit-backdrop-filter: blur(14px);
+    }
+
+    .tap-target {
+      min-height: 3.25rem;
+    }
+
+    .range-track {
+      appearance: none;
+      height: 0.75rem;
+      border-radius: 999px;
+      background: linear-gradient(90deg, #0f172a, #38bdf8, #22c55e, #f97316);
+      outline: none;
+    }
+
+    .range-track::-webkit-slider-thumb {
+      appearance: none;
+      width: 1.85rem;
+      height: 1.85rem;
+      border-radius: 999px;
+      border: 3px solid #ffffff;
+      background: #0f172a;
+      box-shadow: 0 8px 18px rgba(0, 0, 0, 0.42);
+    }
+
+    .range-track::-moz-range-thumb {
+      width: 1.55rem;
+      height: 1.55rem;
+      border-radius: 999px;
+      border: 3px solid #ffffff;
+      background: #0f172a;
+      box-shadow: 0 8px 18px rgba(0, 0, 0, 0.42);
+    }
+
+    .iro__wheel, .iro__slider {
+      filter: drop-shadow(0 18px 22px rgba(0, 0, 0, 0.3));
+    }
+  </style>
+</head>
+
+<body class="text-slate-100 antialiased">
+  <main
+    v-scope="LedApp()"
+    @vue:mounted="mounted"
+    v-cloak
+    class="mx-auto flex min-h-screen w-full max-w-6xl flex-col px-4 py-5 sm:px-6 lg:px-8"
+  >
+    <header class="mb-5 flex flex-col gap-4 sm:mb-7 sm:flex-row sm:items-center sm:justify-between">
+      <div>
+        <p class="text-sm font-medium text-cyan-200/80">Smart-home BLE utility</p>
+        <h1 class="mt-1 text-2xl font-semibold tracking-normal text-white sm:text-4xl">BLE LED Strip Controller</h1>
+      </div>
+
+      <div
+        class="inline-flex w-fit items-center gap-2 rounded-full border px-3 py-2 text-sm font-semibold"
+        :class="statusPillClass"
+        role="status"
+        aria-live="polite"
+      >
+        <span class="h-2.5 w-2.5 rounded-full" :class="statusDotClass"></span>
+        <span>{{ statusLabel }}</span>
+      </div>
+    </header>
+
+    <section
+      v-if="supportWarning"
+      class="mb-5 rounded-lg border border-amber-300/25 bg-amber-400/10 p-4 text-sm text-amber-50"
+      role="alert"
+    >
+      <div class="flex gap-3">
+        <i class="fa-solid fa-triangle-exclamation mt-0.5 text-amber-200" aria-hidden="true"></i>
+        <div>
+          <p class="font-semibold">Web Bluetooth is not ready in this browser context.</p>
+          <p class="mt-1 text-amber-50/80">{{ supportWarning }}</p>
+        </div>
+      </div>
+    </section>
+
+    <section class="grid flex-1 gap-4 lg:grid-cols-[0.92fr_1.08fr] lg:items-start">
+      <div class="space-y-4">
+        <section class="glass rounded-lg p-4 sm:p-5" aria-labelledby="connection-title">
+          <div class="mb-4 flex items-start justify-between gap-3">
+            <div>
+              <h2 id="connection-title" class="text-lg font-semibold text-white">Connection</h2>
+              <p class="mt-1 text-sm text-slate-300">{{ statusMessage || 'Pair with a nearby compatible BLE LED strip.' }}</p>
+            </div>
+            <div class="rounded-full bg-cyan-400/10 p-3 text-cyan-200">
+              <i class="fa-brands fa-bluetooth-b text-xl" aria-hidden="true"></i>
+            </div>
+          </div>
+
+          <div class="grid gap-3" :class="showDisconnectButton ? 'grid-cols-[1fr_auto]' : ''">
+            <button
+              type="button"
+              @click="connect"
+              :disabled="!canConnect"
+              class="tap-target inline-flex w-full items-center justify-center gap-3 rounded-lg bg-cyan-400 px-5 py-3 text-base font-bold text-slate-950 shadow-glow transition hover:bg-cyan-300 focus:outline-none focus:ring-4 focus:ring-cyan-300/35 disabled:cursor-not-allowed disabled:bg-slate-600 disabled:text-slate-300 disabled:shadow-none"
+              aria-label="Connect LED Strip"
+            >
+              <i v-if="status !== 'scanning'" class="fa-solid fa-satellite-dish" aria-hidden="true"></i>
+              <i v-else class="fa-solid fa-spinner animate-spin" aria-hidden="true"></i>
+              <span>{{ connectButtonLabel }}</span>
+            </button>
+
+            <button
+              v-if="showDisconnectButton"
+              type="button"
+              @click="disconnect"
+              :disabled="!connected"
+              class="tap-target inline-flex w-full items-center justify-center gap-3 rounded-lg border border-white/15 bg-white/[0.08] px-5 py-3 text-base font-semibold text-slate-100 transition hover:bg-white/[0.12] focus:outline-none focus:ring-4 focus:ring-white/15 disabled:cursor-not-allowed disabled:text-slate-500 sm:w-auto"
+              aria-label="Disconnect LED Strip"
+            >
+              <i class="fa-solid fa-link-slash" aria-hidden="true"></i>
+              <span>Disconnect</span>
+            </button>
+          </div>
+
+          <dl class="mt-5 grid gap-3 text-sm">
+            <div class="soft-glass rounded-lg p-3">
+              <dt class="text-slate-400">Device</dt>
+              <dd class="mt-1 font-semibold text-white">{{ deviceName }}</dd>
+            </div>
+            <div class="soft-glass rounded-lg p-3">
+              <dt class="text-slate-400">Connection state</dt>
+              <dd class="mt-1 font-semibold text-white">{{ connectionText }}</dd>
+            </div>
+          </dl>
+        </section>
+
+        <section class="glass rounded-lg p-4 sm:p-5" aria-labelledby="debug-title">
+          <div class="mb-4 flex items-center justify-between gap-3">
+            <h2 id="debug-title" class="text-lg font-semibold text-white">Advanced / Debug</h2>
+            <i class="fa-solid fa-terminal text-slate-400" aria-hidden="true"></i>
+          </div>
+
+          <div class="space-y-3 text-sm">
+            <div class="soft-glass rounded-lg p-3">
+              <p class="text-slate-400">Last command</p>
+              <p class="mt-1 break-words font-mono text-cyan-100">{{ lastCommandHex || 'None sent yet' }}</p>
+            </div>
+
+            <div class="grid gap-3 sm:grid-cols-2">
+              <div class="soft-glass rounded-lg p-3">
+                <p class="text-slate-400">Service</p>
+                <p class="mt-1 break-words font-mono text-xs text-slate-100">{{ activeService || 'Not selected' }}</p>
+              </div>
+              <div class="soft-glass rounded-lg p-3">
+                <p class="text-slate-400">Characteristic</p>
+                <p class="mt-1 break-words font-mono text-xs text-slate-100">{{ activeCharacteristic || 'Not selected' }}</p>
+              </div>
+            </div>
+
+            <div class="rounded-lg border border-amber-300/20 bg-amber-300/[0.08] p-3 text-amber-50/80">
+              <i class="fa-solid fa-circle-info mr-2 text-amber-200" aria-hidden="true"></i>
+              Generic BLE strips can use different services, characteristics, or byte protocols. The command constants are grouped near the top of the JavaScript for easy protocol customization.
+            </div>
+
+            <div class="soft-glass max-h-72 overflow-auto rounded-lg p-3" aria-live="polite">
+              <div class="mb-2 flex items-center justify-between gap-3">
+                <p class="text-slate-400">Status log</p>
+                <div class="flex gap-2">
+                  <button
+                    type="button"
+                    @click="copyLogs"
+                    class="rounded-md border border-white/10 bg-white/[0.06] px-2.5 py-1.5 text-xs font-semibold text-slate-200 transition hover:bg-white/[0.12] focus:outline-none focus:ring-2 focus:ring-white/15"
+                    aria-label="Copy status logs"
+                  >
+                    <i class="fa-solid fa-copy" aria-hidden="true"></i>
+                    <span class="sr-only">Copy logs</span>
+                  </button>
+                  <button
+                    type="button"
+                    @click="clearLogs"
+                    class="rounded-md border border-white/10 bg-white/[0.06] px-2.5 py-1.5 text-xs font-semibold text-slate-200 transition hover:bg-white/[0.12] focus:outline-none focus:ring-2 focus:ring-white/15"
+                    aria-label="Clear status logs"
+                  >
+                    <i class="fa-solid fa-trash-can" aria-hidden="true"></i>
+                    <span class="sr-only">Clear logs</span>
+                  </button>
+                </div>
+              </div>
+              <ol class="space-y-2">
+                <li v-for="entry in logs" :key="entry.id" class="border-l border-white/10 pl-3">
+                  <span class="font-mono text-xs text-slate-500">{{ entry.time }}</span>
+                  <span class="ml-2 text-slate-200">{{ entry.message }}</span>
+                </li>
+                <li v-if="logs.length === 0" class="text-slate-400">No events yet.</li>
+              </ol>
+            </div>
+          </div>
+        </section>
+      </div>
+
+      <section class="glass rounded-lg p-4 sm:p-6" aria-labelledby="controls-title">
+        <div class="mb-5 flex items-center justify-between gap-3">
+          <div>
+            <h2 id="controls-title" class="text-lg font-semibold text-white">Controls</h2>
+            <p class="mt-1 text-sm text-slate-300">Choose color and brightness, then stream changes to the strip.</p>
+          </div>
+
+          <button
+            type="button"
+            @click="togglePower"
+            :disabled="!connected"
+            class="tap-target inline-flex min-w-24 items-center justify-center gap-2 rounded-lg px-4 py-3 text-sm font-bold transition focus:outline-none focus:ring-4 disabled:cursor-not-allowed disabled:bg-slate-700 disabled:text-slate-400"
+            :class="poweredOn ? 'bg-emerald-400 text-slate-950 hover:bg-emerald-300 focus:ring-emerald-300/30' : 'bg-slate-200 text-slate-950 hover:bg-white focus:ring-white/25'"
+            :aria-pressed="poweredOn ? 'true' : 'false'"
+            aria-label="Toggle LED strip power"
+          >
+            <i class="fa-solid fa-power-off" aria-hidden="true"></i>
+            <span>{{ poweredOn ? 'On' : 'Off' }}</span>
+          </button>
+        </div>
+
+        <div class="grid gap-6 md:grid-cols-[minmax(250px,0.95fr)_minmax(230px,1.05fr)] md:items-center">
+          <div class="flex justify-center">
+            <div
+              id="colorPicker"
+              class="min-h-[280px] w-full max-w-[320px]"
+              aria-label="Circular color picker"
+            ></div>
+          </div>
+
+          <div class="space-y-5">
+            <div class="soft-glass rounded-lg p-4">
+              <p class="mb-3 text-sm font-medium text-slate-300">Selected color</p>
+              <div
+                class="h-32 rounded-lg border border-white/15 shadow-inner"
+                :style="{ backgroundColor: displayColor }"
+                aria-hidden="true"
+              ></div>
+              <div class="mt-3 flex items-center justify-between gap-3">
+                <span class="text-sm text-slate-400">Hex</span>
+                <span class="rounded-md bg-black/25 px-3 py-1.5 font-mono text-sm font-semibold text-white">{{ selectedHex }}</span>
+              </div>
+              <div class="mt-3 grid grid-cols-3 gap-2 text-center text-xs text-slate-300">
+                <div class="rounded-md bg-black/[0.18] p-2">R <span class="font-mono text-white">{{ scaledColor.r }}</span></div>
+                <div class="rounded-md bg-black/[0.18] p-2">G <span class="font-mono text-white">{{ scaledColor.g }}</span></div>
+                <div class="rounded-md bg-black/[0.18] p-2">B <span class="font-mono text-white">{{ scaledColor.b }}</span></div>
+              </div>
+            </div>
+
+            <div class="soft-glass rounded-lg p-4">
+              <div class="mb-3 flex items-center justify-between gap-3">
+                <label for="brightness" class="text-sm font-medium text-slate-200">Brightness</label>
+                <span class="rounded-md bg-white/10 px-3 py-1 text-sm font-bold text-white">{{ brightness }}%</span>
+              </div>
+              <input
+                id="brightness"
+                type="range"
+                min="1"
+                max="100"
+                step="1"
+                class="range-track w-full"
+                v-model="brightness"
+                @input="handleBrightnessInput"
+                aria-label="Brightness percentage"
+              >
+              <div class="mt-2 flex justify-between text-xs text-slate-400" aria-hidden="true">
+                <span>1%</span>
+                <span>100%</span>
+              </div>
+            </div>
+
+            <div class="grid grid-cols-2 gap-3">
+              <button
+                type="button"
+                @click="sendCurrentColorNow"
+                :disabled="!canSendColor"
+                class="tap-target inline-flex items-center justify-center gap-2 rounded-lg border border-white/15 bg-white/[0.08] px-4 py-3 text-sm font-semibold text-white transition hover:bg-white/[0.12] focus:outline-none focus:ring-4 focus:ring-white/15 disabled:cursor-not-allowed disabled:text-slate-500"
+                aria-label="Send current color"
+              >
+                <i class="fa-solid fa-palette" aria-hidden="true"></i>
+                <span>Send Color</span>
+              </button>
+
+              <button
+                type="button"
+                @click="turnOnWithCurrentColor"
+                :disabled="!connected"
+                class="tap-target inline-flex items-center justify-center gap-2 rounded-lg border border-emerald-300/30 bg-emerald-400/[0.12] px-4 py-3 text-sm font-semibold text-emerald-100 transition hover:bg-emerald-400/[0.18] focus:outline-none focus:ring-4 focus:ring-emerald-300/20 disabled:cursor-not-allowed disabled:text-slate-500"
+                aria-label="Turn on and apply current color"
+              >
+                <i class="fa-solid fa-lightbulb" aria-hidden="true"></i>
+                <span>Apply On</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      </section>
+    </section>
+  </main>
+
+  <script>
+    /*
+      Web Bluetooth limitations:
+      - Requires HTTPS, except localhost.
+      - Requires a supported Chromium-based browser.
+      - requestDevice() must be called from a user gesture.
+      - BLE devices must be powered on, nearby, and not locked by another app.
+    */
+
+    const LED_DEVICE_FILTERS = [
+      { namePrefix: 'ELK' },
+      { namePrefix: 'LED' },
+      { namePrefix: 'BLE' },
+      { namePrefix: 'Magic' },
+      { namePrefix: 'Triones' },
+      { namePrefix: 'Happy' }
+    ];
+
+    // Common BLE LED strip services requested during pairing.
+    const OPTIONAL_SERVICES = [
+      0xffe5,
+      0xffe0,
+      0xfff0,
+      '0000ffe5-0000-1000-8000-00805f9b34fb',
+      '0000ffe0-0000-1000-8000-00805f9b34fb',
+      '0000fff0-0000-1000-8000-00805f9b34fb'
+    ];
+
+    // Known/common writable service and characteristic combinations.
+    const WRITABLE_TARGETS = [
+      { service: 0xffe5, characteristic: 0xffe9 },
+      { service: 0xffe0, characteristic: 0xffe1 },
+      { service: 0xfff0, characteristic: 0xfff3 },
+      {
+        service: '0000ffe5-0000-1000-8000-00805f9b34fb',
+        characteristic: '0000ffe9-0000-1000-8000-00805f9b34fb'
+      },
+      {
+        service: '0000ffe0-0000-1000-8000-00805f9b34fb',
+        characteristic: '0000ffe1-0000-1000-8000-00805f9b34fb'
+      },
+      {
+        service: '0000fff0-0000-1000-8000-00805f9b34fb',
+        characteristic: '0000fff3-0000-1000-8000-00805f9b34fb'
+      }
+    ];
+
+    /*
+      Default generic LED strip command protocol.
+      Edit these helpers if your strip uses a slightly different byte sequence.
+    */
+    const LED_COMMANDS = {
+      powerOn: () => [0x56, 0x00, 0x00, 0x00, 0xaa, 0xf0, 0xaa],
+      powerOff: () => [0x56, 0x00, 0x00, 0x00, 0x00, 0xf0, 0xaa],
+      color: (r, g, b) => [0x56, r, g, b, 0x00, 0xf0, 0xaa]
+    };
+
+    const COLOR_WRITE_THROTTLE_MS = 45;
+
+    function toHexPacket(packet) {
+      return Array.from(packet)
+        .map((byte) => `0x${byte.toString(16).padStart(2, '0')}`)
+        .join(' ');
+    }
+
+    function isLocalhost() {
+      return ['localhost', '127.0.0.1', '::1'].includes(window.location.hostname);
+    }
+
+    function isFileUrl() {
+      return window.location.protocol === 'file:';
+    }
+
+    function isProbablyChromium() {
+      const ua = navigator.userAgent;
+      return /Chrome|Chromium|Edg|OPR|SamsungBrowser/i.test(ua) && !/Firefox|FxiOS/i.test(ua);
+    }
+
+    function createStatusLogEntry(message) {
+      return {
+        id: `${Date.now()}-${Math.random().toString(16).slice(2)}`,
+        time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' }),
+        message
+      };
+    }
+
+    function getErrorMessage(error) {
+      if (!error) return 'Unknown error';
+      const name = error.name ? `${error.name}: ` : '';
+      return `${name}${error.message || String(error)}`;
+    }
+
+    function describeDevice(device) {
+      if (!device) return 'No device';
+      const name = device.name || 'Unnamed device';
+      const id = device.id ? `, id ${device.id}` : '';
+      const connected = device.gatt?.connected ? 'connected' : 'not connected';
+      return `${name}${id}, GATT ${connected}`;
+    }
+
+    function describeProperties(characteristic) {
+      if (!characteristic?.properties) return 'properties unavailable';
+      const props = characteristic.properties;
+      return [
+        props.read && 'read',
+        props.write && 'write',
+        props.writeWithoutResponse && 'writeWithoutResponse',
+        props.notify && 'notify',
+        props.indicate && 'indicate'
+      ].filter(Boolean).join(', ') || 'no writable/readable flags';
+    }
+
+    window.LedApp = function LedApp() {
+      return {
+        supported: false,
+        secureContext: false,
+        likelySupportedBrowser: false,
+        status: 'idle',
+        statusMessage: '',
+        device: null,
+        server: null,
+        characteristic: null,
+        connected: false,
+        poweredOn: true,
+        baseColor: { r: 255, g: 0, b: 0 },
+        brightness: 100,
+        selectedHex: '#ff0000',
+        lastCommandHex: '',
+        activeService: '',
+        activeCharacteristic: '',
+        logs: [],
+        picker: null,
+        writeTimer: null,
+        lastWriteAt: 0,
+        pendingColorWrite: false,
+        reconnecting: false,
+        disconnectHandler: null,
+
+        get statusLabel() {
+          if (this.status === 'scanning') return 'Scanning';
+          if (this.connected) return 'Connected';
+          if (!this.supported || !this.secureContext || !this.likelySupportedBrowser) return 'Unsupported';
+          if (this.status === 'disconnected') return 'Disconnected';
+          return 'Ready';
+        },
+
+        get statusPillClass() {
+          if (this.connected) return 'border-emerald-300/30 bg-emerald-400/10 text-emerald-100';
+          if (this.status === 'scanning') return 'border-cyan-300/30 bg-cyan-400/10 text-cyan-100';
+          if (!this.supported || !this.secureContext || !this.likelySupportedBrowser) return 'border-amber-300/30 bg-amber-400/10 text-amber-100';
+          if (this.status === 'disconnected') return 'border-slate-300/20 bg-slate-400/10 text-slate-200';
+          return 'border-sky-300/25 bg-sky-400/10 text-sky-100';
+        },
+
+        get statusDotClass() {
+          if (this.connected) return 'bg-emerald-300';
+          if (this.status === 'scanning') return 'bg-cyan-300 animate-pulse';
+          if (!this.supported || !this.secureContext || !this.likelySupportedBrowser) return 'bg-amber-300';
+          return 'bg-slate-300';
+        },
+
+        get supportWarning() {
+          if (isFileUrl()) {
+            return 'This page is open as a file:// URL. Serve it from localhost or GitHub Pages; browser security blocks Web Bluetooth and some CDN/module behavior from local files.';
+          }
+          if (!this.secureContext) {
+            return 'Serve this page over HTTPS, such as GitHub Pages, or from localhost while developing.';
+          }
+          if (!this.supported) {
+            return 'navigator.bluetooth is missing. Use a supported Chromium-based browser with Web Bluetooth enabled.';
+          }
+          if (!this.likelySupportedBrowser) {
+            return 'This browser does not look like a Chromium-based browser. Web Bluetooth support may be unavailable or incomplete.';
+          }
+          return '';
+        },
+
+        get canConnect() {
+          return this.supported && this.secureContext && this.likelySupportedBrowser && this.status !== 'scanning' && !this.connected;
+        },
+
+        get connectButtonLabel() {
+          if (this.status === 'scanning') return 'Scanning...';
+          if (this.device) return 'Reconnect';
+          return 'Connect LED Strip';
+        },
+
+        get showDisconnectButton() {
+          return !!this.device;
+        },
+
+        get canSendColor() {
+          return this.connected && this.poweredOn && !!this.characteristic;
+        },
+
+        get deviceName() {
+          return this.device?.name || 'No device selected';
+        },
+
+        get connectionText() {
+          if (this.connected) return 'Connected and ready';
+          if (this.status === 'scanning') return 'Waiting for browser pairing prompt';
+          if (this.status === 'disconnected') return 'Disconnected';
+          return 'Not connected';
+        },
+
+        get scaledColor() {
+          return this.scaleColor(this.baseColor, Number(this.brightness));
+        },
+
+        get displayColor() {
+          const color = this.scaledColor;
+          return `rgb(${color.r}, ${color.g}, ${color.b})`;
+        },
+
+        mounted() {
+          this.checkSupport();
+          this.initColorPicker();
+          this.installDebugListeners();
+          this.log(this.statusMessage || 'App ready');
+        },
+
+        installDebugListeners() {
+          document.addEventListener('visibilitychange', () => {
+            this.log(`Page visibility changed: ${document.visibilityState}`);
+          });
+
+          window.addEventListener('online', () => this.log('Browser network state: online'));
+          window.addEventListener('offline', () => this.log('Browser network state: offline'));
+
+          if (navigator.bluetooth?.addEventListener) {
+            navigator.bluetooth.addEventListener('availabilitychanged', (event) => {
+              this.log(`Bluetooth availability changed: ${event.value ? 'available' : 'unavailable'}`);
+            });
+          }
+        },
+
+        checkSupport() {
+          this.secureContext = !isFileUrl() && (window.isSecureContext || isLocalhost());
+          this.supported = 'bluetooth' in navigator;
+          this.likelySupportedBrowser = isProbablyChromium();
+          this.log(`Support check: secure=${this.secureContext}, webBluetooth=${this.supported}, chromiumLike=${this.likelySupportedBrowser}`);
+
+          if (!this.secureContext || !this.supported || !this.likelySupportedBrowser) {
+            this.status = 'unsupported';
+            this.statusMessage = this.supportWarning;
+            this.log(`Unsupported context: ${this.statusMessage}`);
+            return;
+          }
+
+          this.status = 'ready';
+          this.statusMessage = 'Ready to pair with a BLE LED strip.';
+        },
+
+        initColorPicker() {
+          const container = document.getElementById('colorPicker');
+          if (!container || !window.iro) return;
+
+          this.picker = new iro.ColorPicker(container, {
+            width: Math.min(320, container.clientWidth || 300),
+            color: this.selectedHex,
+            borderWidth: 2,
+            borderColor: 'rgba(255,255,255,0.22)',
+            layout: [
+              { component: iro.ui.Wheel },
+              { component: iro.ui.Slider, options: { sliderType: 'value' } }
+            ]
+          });
+
+          this.picker.on('color:change', (color) => {
+            const rgb = color.rgb;
+            this.baseColor = { r: rgb.r, g: rgb.g, b: rgb.b };
+            this.selectedHex = color.hexString;
+            this.queueColorWrite();
+          });
+
+          window.addEventListener('resize', () => {
+            if (!this.picker) return;
+            const nextWidth = Math.min(320, container.clientWidth || 300);
+            this.picker.resize(nextWidth);
+          });
+        },
+
+        async connect() {
+          this.checkSupport();
+          if (!this.canConnect) {
+            this.log(this.supportWarning || 'Connection is not available right now.');
+            return;
+          }
+
+          if (this.device && !this.connected) {
+            await this.reconnectDevice();
+            return;
+          }
+
+          this.status = 'scanning';
+          this.statusMessage = 'Scanning for likely BLE LED strip devices...';
+          this.log('Opening native Bluetooth pairing prompt');
+          this.log(`Request filters: ${LED_DEVICE_FILTERS.map((filter) => filter.namePrefix).join(', ')}`);
+          this.log(`Optional services requested: ${OPTIONAL_SERVICES.map(String).join(', ')}`);
+
+          try {
+            const device = await navigator.bluetooth.requestDevice({
+              filters: LED_DEVICE_FILTERS,
+              optionalServices: OPTIONAL_SERVICES
+            });
+
+            this.device = device;
+            this.attachDisconnectHandler(device);
+            this.log(`Device selected: ${describeDevice(device)}`);
+            this.statusMessage = `Connecting to ${device.name || 'selected device'}...`;
+            this.log(this.statusMessage);
+
+            this.log('Calling device.gatt.connect()');
+            this.server = await device.gatt.connect();
+            this.log(`GATT connected: ${this.server.connected ? 'yes' : 'no'}`);
+            await this.findWritableCharacteristic();
+
+            this.connected = true;
+            this.status = 'connected';
+            this.statusMessage = `Connected to ${device.name || 'LED strip'}.`;
+            this.log(this.statusMessage);
+
+            if (this.poweredOn) {
+              this.queueColorWrite();
+            }
+          } catch (error) {
+            this.cleanupConnection();
+            if (error.name === 'NotFoundError') {
+              this.device = null;
+              this.statusMessage = 'Pairing cancelled or no matching LED strip was selected.';
+            } else {
+              this.statusMessage = error.message || 'Bluetooth connection failed.';
+            }
+            this.status = 'disconnected';
+            this.log(`Connect failed: ${getErrorMessage(error)}`);
+            this.log(this.statusMessage);
+          }
+        },
+
+        async reconnectDevice() {
+          this.status = 'scanning';
+          this.statusMessage = `Reconnecting to ${this.device.name || 'LED strip'}...`;
+          this.log(this.statusMessage);
+          this.log(`Reconnect target: ${describeDevice(this.device)}`);
+
+          try {
+            this.attachDisconnectHandler(this.device);
+            this.log('Calling device.gatt.connect() for reconnect');
+            this.server = await this.device.gatt.connect();
+            this.log(`Reconnect GATT connected: ${this.server.connected ? 'yes' : 'no'}`);
+            await this.findWritableCharacteristic();
+
+            this.connected = true;
+            this.status = 'connected';
+            this.statusMessage = `Reconnected to ${this.device.name || 'LED strip'}.`;
+            this.log(this.statusMessage);
+
+            if (this.poweredOn) {
+              this.queueColorWrite();
+            }
+          } catch (error) {
+            this.cleanupConnection();
+            this.status = 'disconnected';
+            this.statusMessage = error.message || 'Reconnect failed. Use the browser pairing prompt again if the device is unavailable.';
+            this.log(`Reconnect failed: ${getErrorMessage(error)}`);
+            this.log(this.statusMessage);
+          }
+        },
+
+        attachDisconnectHandler(device) {
+          if (!device) return;
+          if (this.disconnectHandler) {
+            device.removeEventListener('gattserverdisconnected', this.disconnectHandler);
+            this.log('Removed previous GATT disconnect listener');
+          }
+
+          this.disconnectHandler = () => this.handleDisconnect();
+          device.addEventListener('gattserverdisconnected', this.disconnectHandler);
+          this.log('Attached GATT disconnect listener');
+        },
+
+        async findWritableCharacteristic() {
+          if (!this.server) throw new Error('GATT server is not available.');
+          this.log(`Starting writable characteristic search across ${WRITABLE_TARGETS.length} known targets`);
+
+          for (const target of WRITABLE_TARGETS) {
+            const serviceId = String(target.service);
+            const characteristicId = String(target.characteristic);
+            try {
+              this.log(`Trying service ${serviceId}`);
+              const service = await this.server.getPrimaryService(target.service);
+              this.log(`Service found: ${serviceId}; trying characteristic ${characteristicId}`);
+              const characteristic = await service.getCharacteristic(target.characteristic);
+              this.log(`Characteristic found: ${characteristicId}; properties: ${describeProperties(characteristic)}`);
+
+              if (characteristic.properties.write || characteristic.properties.writeWithoutResponse) {
+                this.characteristic = characteristic;
+                this.activeService = serviceId;
+                this.activeCharacteristic = characteristicId;
+                this.log(`Using writable target ${this.activeService} / ${this.activeCharacteristic}`);
+                return;
+              }
+
+              this.log(`Characteristic is not writable: ${serviceId} / ${characteristicId}`);
+            } catch (error) {
+              this.log(`Target failed ${serviceId} / ${characteristicId}: ${getErrorMessage(error)}`);
+            }
+          }
+
+          throw new Error('Writable LED characteristic not found. This device may use a different BLE protocol, service, or characteristic.');
+        },
+
+        async disconnect() {
+          this.log(`Disconnect requested. Current device: ${describeDevice(this.device)}`);
+          if (this.device && this.disconnectHandler) {
+            this.device.removeEventListener('gattserverdisconnected', this.disconnectHandler);
+            this.disconnectHandler = null;
+            this.log('Removed GATT disconnect listener before manual disconnect');
+          }
+
+          if (this.device?.gatt?.connected) {
+            this.log('Calling device.gatt.disconnect()');
+            this.device.gatt.disconnect();
+          } else {
+            this.log('Manual disconnect requested while GATT was already disconnected');
+          }
+          this.cleanupConnection();
+          this.status = 'disconnected';
+          this.statusMessage = 'Disconnected by user.';
+          this.log(this.statusMessage);
+        },
+
+        handleDisconnect() {
+          this.log(`GATT disconnect event fired. Last device state: ${describeDevice(this.device)}`);
+          this.cleanupConnection();
+          this.status = 'disconnected';
+          this.statusMessage = 'Device disconnected';
+          this.log('Device disconnected');
+        },
+
+        cleanupConnection() {
+          this.log(`Cleaning connection refs. connected=${this.connected}, hasServer=${!!this.server}, hasCharacteristic=${!!this.characteristic}`);
+          this.connected = false;
+          this.server = null;
+          this.characteristic = null;
+          this.activeService = '';
+          this.activeCharacteristic = '';
+        },
+
+        async togglePower() {
+          if (!this.connected || !this.characteristic) return;
+
+          const previousPowerState = this.poweredOn;
+          this.poweredOn = !this.poweredOn;
+          const command = this.poweredOn ? LED_COMMANDS.powerOn() : LED_COMMANDS.powerOff();
+
+          try {
+            await this.writePacket(command, { preferWithoutResponse: false });
+            this.log(this.poweredOn ? 'Power on command sent' : 'Power off command sent');
+
+            if (this.poweredOn) {
+              this.queueColorWrite();
+            }
+          } catch (error) {
+            this.poweredOn = previousPowerState;
+            this.statusMessage = `Power command failed: ${error.message}`;
+            this.log(this.statusMessage);
+          }
+        },
+
+        async turnOnWithCurrentColor() {
+          if (!this.connected || !this.characteristic) return;
+
+          if (!this.poweredOn) {
+            const previousPowerState = this.poweredOn;
+            this.poweredOn = true;
+
+            try {
+              await this.writePacket(LED_COMMANDS.powerOn(), { preferWithoutResponse: false });
+              this.log('Power on command sent');
+            } catch (error) {
+              this.poweredOn = previousPowerState;
+              this.statusMessage = `Power command failed: ${error.message}`;
+              this.log(this.statusMessage);
+              return;
+            }
+          }
+
+          this.sendCurrentColorNow();
+        },
+
+        handleBrightnessInput() {
+          this.brightness = Number(this.brightness);
+          this.queueColorWrite();
+        },
+
+        queueColorWrite() {
+          if (!this.canSendColor) return;
+
+          const now = Date.now();
+          const elapsed = now - this.lastWriteAt;
+
+          if (elapsed >= COLOR_WRITE_THROTTLE_MS) {
+            this.lastWriteAt = now;
+            this.sendCurrentColorNow();
+            return;
+          }
+
+          if (this.pendingColorWrite) return;
+
+          this.pendingColorWrite = true;
+          window.clearTimeout(this.writeTimer);
+          this.writeTimer = window.setTimeout(() => {
+            this.pendingColorWrite = false;
+            this.lastWriteAt = Date.now();
+            this.sendCurrentColorNow();
+          }, COLOR_WRITE_THROTTLE_MS - elapsed);
+        },
+
+        async sendCurrentColorNow() {
+          if (!this.canSendColor) return;
+
+          const color = this.scaledColor;
+          const packet = LED_COMMANDS.color(color.r, color.g, color.b);
+
+          try {
+            await this.writePacket(packet, { preferWithoutResponse: true });
+          } catch (error) {
+            this.statusMessage = `Color write failed: ${error.message}`;
+            this.log(this.statusMessage);
+          }
+        },
+
+        /*
+          Color scaling logic:
+          Base RGB remains unchanged in state. Brightness scales only the outgoing
+          command, so the selected color can be restored smoothly at any brightness.
+        */
+        scaleColor(color, brightness) {
+          const level = Math.max(1, Math.min(100, Number(brightness) || 1));
+          return {
+            r: Math.round(color.r * level / 100),
+            g: Math.round(color.g * level / 100),
+            b: Math.round(color.b * level / 100)
+          };
+        },
+
+        async writePacket(packet, options = {}) {
+          if (!this.characteristic) {
+            throw new Error('No writable BLE characteristic is connected.');
+          }
+
+          const data = new Uint8Array(packet);
+          this.lastCommandHex = toHexPacket(data);
+          const useWithoutResponse = options.preferWithoutResponse && this.characteristic.properties.writeWithoutResponse && this.characteristic.writeValueWithoutResponse;
+          const writeMethod = useWithoutResponse ? 'writeValueWithoutResponse' : 'writeValue';
+          this.log(`BLE write start via ${writeMethod}: ${this.lastCommandHex}`);
+
+          try {
+            if (useWithoutResponse) {
+              await this.characteristic.writeValueWithoutResponse(data);
+            } else {
+              await this.characteristic.writeValue(data);
+            }
+            this.log(`BLE write ok via ${writeMethod}`);
+          } catch (error) {
+            this.log(`BLE write failed via ${writeMethod}: ${getErrorMessage(error)}`);
+            if (!this.device?.gatt?.connected) {
+              this.log('Device reports GATT disconnected after write failure');
+              this.handleDisconnect();
+            }
+            throw error;
+          }
+        },
+
+        log(message) {
+          if (!message) return;
+          this.logs = [createStatusLogEntry(message), ...this.logs].slice(0, 100);
+        },
+
+        clearLogs() {
+          this.logs = [];
+          this.log('Logs cleared');
+        },
+
+        async copyLogs() {
+          const text = this.logs
+            .slice()
+            .reverse()
+            .map((entry) => `[${entry.time}] ${entry.message}`)
+            .join('\n');
+
+          try {
+            await navigator.clipboard.writeText(text || 'No logs');
+            this.log('Copied logs to clipboard');
+          } catch (error) {
+            this.log(`Could not copy logs: ${getErrorMessage(error)}`);
+          }
+        }
+      };
+    };
+
+    window.PetiteVue.createApp({ LedApp: window.LedApp }).mount();
+  </script>
+</body>
+</html>
