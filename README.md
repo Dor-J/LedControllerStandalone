@@ -13,7 +13,8 @@ The app lives in `src/index.html` and uses the browser-native Web Bluetooth API 
 - Adjust brightness from 1% to 100%.
 - Send throttled RGB updates for smoother color changes.
 - Disconnect and reconnect to a previously selected device during the same browser session.
-- View connection state, active BLE target, last command bytes, and status logs.
+- View connection state, active BLE target, last command bytes, and detailed status logs.
+- Copy or clear debug logs from the Advanced / Debug card while testing connection drops.
 
 ## Browser Requirements
 
@@ -43,9 +44,19 @@ http://127.0.0.1:8000/index.html
 
 `localhost` and `127.0.0.1` are allowed Web Bluetooth development origins.
 
+Do not open `src/index.html` directly with a `file://` URL. Browsers treat local files as isolated origins, which breaks Web Bluetooth and can also interfere with CDN-loaded browser libraries.
+
 ## Deploy To GitHub Pages
 
-Configure GitHub Pages to serve from the `src` folder, or copy `src/index.html` to the publishing root if your Pages setup serves from the repository root.
+This repository is prepared for GitHub Pages with a workflow at `.github/workflows/pages.yml`. The workflow publishes the `src` folder directly, so the deployed site root is `src/index.html`.
+
+To enable it:
+
+1. Push the repository to GitHub.
+2. Open the repository on GitHub.
+3. Go to **Settings > Pages**.
+4. Under **Build and deployment**, set **Source** to **GitHub Actions**.
+5. Push to `main` or `master`, or run **Deploy GitHub Pages** manually from the **Actions** tab.
 
 Once deployed, open the HTTPS Pages URL in Chrome or Edge and click **Connect LED Strip**.
 
@@ -60,6 +71,18 @@ color:    [0x56, r, g, b, 0x00, 0xf0, 0xaa]
 ```
 
 Some generic LED strips use different BLE services, characteristics, or packet formats. If pairing works but commands do not affect the strip, update those constants and the writable target list in `src/index.html`.
+
+## Debugging Connection Drops
+
+Open the **Advanced / Debug** card before connecting. The status log records pairing, GATT connection, every known service/characteristic attempt, write method selection, write failures, and disconnect events.
+
+If the strip disconnects, click the copy button in the log area and inspect the last few entries first. The most useful lines are usually the final `BLE write failed`, `Target failed`, or `GATT disconnect event fired` messages.
+
+## Tailwind CDN Note
+
+This project intentionally uses Tailwind Play CDN to keep the app as a single static HTML file with no build step. The browser console will show Tailwind's production warning for `cdn.tailwindcss.com`.
+
+Adding PostCSS from a CDN does not fix that warning. The published PostCSS package is a Node/CommonJS package and expects `require`, so it is not a drop-in browser replacement for Tailwind's production build pipeline.
 
 ## Licence
 
