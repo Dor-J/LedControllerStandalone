@@ -1,0 +1,23 @@
+.DS_Store
+Thumbs.db
+
+# Editor and OS metadata
+.idea/
+.vscode/
+*.swp
+*.swo
+.cursor/
+.codex/
+.agent/
+.claude/
+
+# Local logs and temporary files
+*.log
+*.tmp
+*.temp
+
+# Dependency/build folders if local tooling is ever used for checks
+node_modules/
+dist/
+build/
+docs/
