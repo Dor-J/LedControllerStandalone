@@ -21,8 +21,10 @@ function includesAll(source, values) {
 
 test('publishes a single static app file from src', () => {
   assert.ok(existsSync(htmlPath), 'src/index.html must exist');
+  assert.ok(!existsSync(join(root, 'src', 'favicon.svg')), 'favicon should be inline, not a separate file');
   assert.ok(html.startsWith('<!doctype html>'), 'index.html should be a complete HTML document');
   assert.ok(html.includes('</html>'), 'index.html should close the HTML document');
+  assert.ok(html.includes('rel="icon" type="image/svg+xml" href="data:image/svg+xml,'), 'index.html should include an inline SVG favicon data URL');
 });
 
 test('keeps no-build browser CDN dependencies', () => {
